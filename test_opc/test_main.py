@@ -51,7 +51,7 @@ if __name__ == '__main__':
     load_dotenv()
     ip_addr = os.environ.get("MACHINE_IPS").split(",")[0]
     port = 4840
-    url = f"opc.tcp://{ip_addr}:4840"
+    url = f"opc.tcp://{ip_addr}:4841"
     c = connect(url)
     node_id = 'ns=2;s=LifeBeat'
     subscribe(c, node_id)
