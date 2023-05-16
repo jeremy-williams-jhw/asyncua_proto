@@ -1,9 +1,10 @@
 import asyncio
+import os
 import logging
 import json
 from asyncua import Client, Node, ua
 from time import sleep
-import threading
+from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger('asyncua')
@@ -37,8 +38,12 @@ async def main():
     """
     Main task of this Client-Subscription example.
     """
+    load_dotenv()
+    ip_addr = os.environ.get("MACHINE_IPS").split(",")[0]
+    port = 4840
+    url = f"opc.tcp://{ip_addr}:4841"
 
-    async with Client(url='opc.tcp://10.50.24.239:4841') as client:
+    async with Client(url=url) as client:
         async def get_event_filter() -> ua.EventFilter:
             # get the node id of the custom event type
             eventtype_id = f"ns=5;i=4200"
@@ -66,18 +71,17 @@ async def main():
             event_filter.SelectClauses = [select_element]
             event_filter.WhereClause = content_filter
             return event_filter
+        
+        # single tag val
+        myvar = client.get_node("ns=2;s=SerialNo")
+        print("***************************\n\n", await myvar.read_value(), "\n\n*************************")
 
         # CREATE HANDLER, SUBSCRIPTION WITH EVENT FILTER
-        # obj = await client.nodes.root.get_child(["0:Objects", "5:Ganymede"])
-        # print("obj>>>>>>>>>>>>>>>>> ", obj)
         gany_event = await client.nodes.root.get_child(["0:Objects", "5:Ganymede", "5:GanymedeEvent", "5:GanymedeEventType"])
-        # life_beat_event = await client.nodes.root.get_child(["0:Objects", "2:Automation", "2:LifeBeat"])
-        # print("my event>>>>>>>>>>>>>>>>>>>> ", gany_event)
         handler = SubHandler()
         sub = await client.create_subscription(500, handler)
         filter = await get_event_filter()
-        # dc_handle = await sub.subscribe_data_change(gany_event)
-        ev_handle = await sub.subscribe_events(evfilter=filter)#myevent)
+        ev_handle = await sub.subscribe_events(evfilter=filter)
 
         # SEND MESSAGE
         methodNode = client.get_node("ns=5;s=SendMessage")
@@ -92,22 +96,17 @@ async def main():
         message_id = response["messageId"]
 
         # WAIT FOR HANDLER TO SAY THAT MESSAGE ID IS AVAILABLE
-        # TODO: How to make this async?
-        # response_ready = await handler.events.get(message_id)
-        while not handler.events:
+        while not handler.events.get(message_id):
              print(message_id, handler.events.get(message_id))
-             sleep(1)
+             await asyncio.sleep(1)
 
         # REQUEST MESSAGE WITH MESSAGE id
         methodNode = client.get_node("ns=5;s=RequestMessage")
         rqNode = await methodNode.get_parent()
 
-        response_str = await rqNode.call_method(methodNode, ua.Variant(message_id, ua.VariantType.String))
+        response_str = await rqNode.call_method(methodNode, ua.Variant(message_id, ua.VariantType.UInt32))
         response = json.loads(response_str, strict=False)
-        print(response)
-
-        await sub.unsubscribe(handler)
-        await sub.delete()
+        print("************************\n\n", response, "\n\n**********************")
 
 
 if __name__ == "__main__":
