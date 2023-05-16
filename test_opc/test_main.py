@@ -1,4 +1,4 @@
-from opc_client import UaClient
+from opc_client import UaClient, ua
 import logging
 import sys
 import os
@@ -39,6 +39,24 @@ def connect(url):
     return c
 
 
+def get_value(ns, s, client):
+    result = None
+    try:
+        uac = ua.ReadParameters()
+        nodeid = ua.NodeId.from_string(f"ns={ns};s={s}")
+        attr = ua.ReadValueId()
+        attr.NodeId = nodeid
+        attr.AttributeId = ua.AttributeIds.Value
+        uac.NodesToRead.append(attr)
+
+        result = client.read(uac)
+    except Exception as ex:
+        logger.warning(
+            "Error in getting value {0} with error {1}{2}".format(s, ex, ex.args)
+        )
+    # we cannot return a specific type (like '' or 0) because the value that is returned here could be any data type relative to the corresponding tag in opcua server
+    return None if not result else result[0].Value.Value
+
 #ua.ObjectIds.BaseEventType
 
 def subscribe(c, node_id):
@@ -54,4 +72,10 @@ if __name__ == '__main__':
     url = f"opc.tcp://{ip_addr}:4841"
     c = connect(url)
     node_id = 'ns=2;s=LifeBeat'
-    subscribe(c, node_id)
+    # subscribe(c, node_id)
+    print(
+        # get_value(2, 'CalDate', c)
+        c.nodes.root.get_child(["0:Objects", "2:Automation", "2:CalDate"])
+    )
+
+    i = 0
